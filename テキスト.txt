@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ワードウルフで あそぼう！</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Zen Maru Gothic -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@700;900&display=swap" rel="stylesheet">
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: 'Zen Maru Gothic', sans-serif;
+            background: linear-gradient(135deg, #fef3c7 0%, #e0f2fe 50%, #fce7f3 100%);
+            min-height: 100vh;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+            overflow-x: hidden;
+        }
+
+        .card-shadow {
+            box-shadow: 0 12px 24px -6px rgba(0, 0, 0, 0.12), 0 8px 16px -8px rgba(0, 0, 0, 0.08);
+        }
+
+        .btn-pop {
+            transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.15s ease;
+        }
+        .btn-pop:active {
+            transform: scale(0.95);
+        }
+
+        @keyframes pulse-slow {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.03); }
+        }
+
+        .animate-pulse-slow {
+            animation: pulse-slow 2.5s infinite ease-in-out;
+        }
+
+        @keyframes wiggle {
+            0%, 100% { transform: rotate(-4deg); }
+            50% { transform: rotate(4deg); }
+        }
+
+        .animate-wiggle {
+            animation: wiggle 0.6s infinite ease-in-out;
+        }
+
+        /* Glassmorphism panel */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 3px solid rgba(255, 255, 255, 0.8);
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center p-3 sm:p-6 text-gray-800">
+
+    <div id="app" class="w-full max-w-2xl min-h-[85vh] flex flex-col justify-between glass-panel rounded-3xl p-4 sm:p-8 card-shadow relative overflow-hidden">
+        
+        <!-- Header -->
+        <header class="text-center my-1">
+            <h1 class="text-3xl sm:text-4xl font-black text-amber-500 tracking-wider drop-shadow-sm flex items-center justify-center gap-2">
+                <span>🐺</span> ワードウルフ <span>🐺</span>
+            </h1>
+            <p class="text-xs sm:text-base font-bold text-gray-500 mt-1">みんなで たのしく おはなし しよう！</p>
+        </header>
+
+        <!-- SCREEN 1: 人数・名前設定 -->
+        <div id="screen-setup" class="space-y-5 my-auto py-2">
+            <div class="bg-amber-50 rounded-2xl p-4 sm:p-6 border-2 border-amber-200 text-center">
+                <label class="block text-lg sm:text-xl font-bold text-amber-800 mb-3">
+                    👥 なにんで あそぶ？
+                </label>
+                <div class="flex items-center justify-center gap-4 sm:gap-6">
+                    <button onclick="changePlayerCount(-1)" class="btn-pop bg-amber-400 hover:bg-amber-500 text-white w-14 h-14 rounded-2xl text-3xl font-black shadow-lg flex items-center justify-center active:bg-amber-600">
+                        ー
+                    </button>
+                    <span id="player-count-display" class="text-4xl sm:text-5xl font-black text-amber-600 min-w-[70px] text-center">3</span>
+                    <button onclick="changePlayerCount(1)" class="btn-pop bg-amber-400 hover:bg-amber-500 text-white w-14 h-14 rounded-2xl text-3xl font-black shadow-lg flex items-center justify-center active:bg-amber-600">
+                        ＋
+                    </button>
+                </div>
+                <p class="text-center text-xs sm:text-sm text-amber-600 mt-2 font-bold">（3にん 〜 8にん まで）</p>
+            </div>
+
+            <!-- プレイヤー名入力 -->
+            <div class="bg-sky-50 rounded-2xl p-4 border-2 border-sky-200">
+                <h3 class="text-base sm:text-lg font-bold text-sky-800 mb-3 text-center">
+                    ✏️ さんかする ひと の なまえ
+                </h3>
+                <div id="player-inputs" class="grid grid-cols-2 gap-2 sm:gap-3 max-h-48 overflow-y-auto p-1">
+                    <!-- JSで動的に追加 -->
+                </div>
+            </div>
+
+            <button onclick="startGame()" class="btn-pop animate-pulse-slow w-full bg-gradient-to-r from-emerald-400 to-green-500 hover:from-emerald-500 hover:to-green-600 text-white font-black text-xl sm:text-2xl py-4 rounded-2xl shadow-xl border-b-4 border-green-700 flex items-center justify-center gap-2">
+                <span>▶️ ゲームを はじめる！</span>
+            </button>
+        </div>
+
+        <!-- SCREEN 2: おだい確認（順番にカードをめくる） -->
+        <div id="screen-reveal" class="hidden space-y-5 my-auto text-center py-2">
+            <div class="bg-indigo-50 rounded-2xl p-4 border-2 border-indigo-200">
+                <p class="text-xs sm:text-base font-bold text-indigo-500">じゅんばん に おだい を みてね</p>
+                <h2 id="current-player-name" class="text-3xl sm:text-4xl font-black text-indigo-700 mt-1"></h2>
+            </div>
+
+            <!-- カード -->
+            <div id="word-card" class="bg-white border-4 border-dashed border-amber-300 rounded-3xl p-6 sm:p-8 card-shadow min-h-[220px] flex flex-col items-center justify-center relative transition-all duration-300">
+                <div id="card-cover" class="space-y-4">
+                    <div class="text-6xl sm:text-7xl animate-wiggle">🎁</div>
+                    <p class="text-base sm:text-lg font-bold text-gray-600">
+                        「おだい を みる」を おしてね！<br>
+                        <span class="text-xs sm:text-sm text-red-500 font-bold">※ ほかの ひと に みられないようにね！</span>
+                    </p>
+                    <button onclick="revealWord()" class="btn-pop bg-amber-400 hover:bg-amber-500 text-white font-black text-lg sm:text-xl py-3 px-8 rounded-full shadow-lg border-b-4 border-amber-600">
+                        👁️ おだい を みる
+                    </button>
+                </div>
+
+                <div id="card-content" class="hidden space-y-4">
+                    <p class="text-base font-bold text-gray-500">あなた の おだい は...</p>
+                    <div id="secret-word-display" class="text-3xl sm:text-5xl font-black text-amber-600 bg-amber-50 px-6 py-4 rounded-2xl border-2 border-amber-300 inline-block tracking-wider">
+                        ---
+                    </div>
+                    <p class="text-xs sm:text-sm text-gray-500 font-bold">しっかり おぼえたら 「わかりました」 を おしてね</p>
+                    <button onclick="confirmWord()" class="btn-pop bg-emerald-500 hover:bg-emerald-600 text-white font-black text-lg sm:text-xl py-3 px-8 rounded-full shadow-lg border-b-4 border-emerald-700">
+                        ✅ わかりました！
+                    </button>
+                </div>
+            </div>
+
+            <p class="text-xs sm:text-sm font-bold text-gray-400">
+                <span id="reveal-progress">1</span> / <span id="reveal-total">3</span> にんめ
+            </p>
+        </div>
+
+        <!-- SCREEN 3: 話し合い＆タイマー -->
+        <div id="screen-talk" class="hidden space-y-5 my-auto text-center py-2">
+            <div class="bg-rose-50 rounded-2xl p-4 border-2 border-rose-200">
+                <h2 class="text-2xl sm:text-3xl font-black text-rose-600 mb-1">
+                    💬 はなしあい じかん！
+                </h2>
+                <p class="text-xs sm:text-sm font-bold text-gray-600">
+                    みんなの おだい について しつもん し合おう！<br>
+                    ひとりだけ ちがう おだい の ひと（うそつき）を さがそう！
+                </p>
+            </div>
+
+            <!-- タイマー表示 -->
+            <div class="bg-white rounded-3xl p-5 card-shadow border-4 border-amber-200 flex flex-col items-center justify-center space-y-3">
+                <div id="timer-display" class="text-5xl sm:text-7xl font-black text-gray-800 font-mono tracking-widest">
+                    03:00
+                </div>
+                <div class="flex gap-3">
+                    <button id="btn-timer-toggle" onclick="toggleTimer()" class="btn-pop bg-sky-400 hover:bg-sky-500 text-white font-bold text-base sm:text-lg px-6 py-2 rounded-xl shadow border-b-4 border-sky-600">
+                        ⏸️ とめる
+                    </button>
+                    <button onclick="resetTimer()" class="btn-pop bg-gray-300 hover:bg-gray-400 text-gray-700 font-bold text-base sm:text-lg px-4 py-2 rounded-xl shadow border-b-4 border-gray-400">
+                        🔄 りせっと
+                    </button>
+                </div>
+            </div>
+
+            <!-- ヒント質問ボタン（低学年向け） -->
+            <div class="bg-amber-50 rounded-2xl p-4 border-2 border-amber-200">
+                <p class="text-xs font-bold text-amber-700 mb-2">💡 なに を はなせば いいか わからない とき は？</p>
+                <div id="hint-box" class="text-sm sm:text-lg font-bold text-amber-900 bg-white p-3 rounded-xl border border-amber-300 shadow-sm min-h-[50px] flex items-center justify-center">
+                    「ヒント を だす」 ボタン を おしてね！
+                </div>
+                <button onclick="getRandomHint()" class="btn-pop bg-amber-400 hover:bg-amber-500 text-white font-bold text-xs sm:text-sm px-5 py-2 rounded-full mt-3 shadow">
+                    💡 ヒント を だす
+                </button>
+            </div>
+
+            <button onclick="goToVote()" class="btn-pop w-full bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-black text-xl sm:text-2xl py-4 rounded-2xl shadow-xl border-b-4 border-indigo-800">
+                🗳️ とうひょう へ すすむ！
+            </button>
+        </div>
+
+        <!-- SCREEN 4: 投票 -->
+        <div id="screen-vote" class="hidden space-y-5 my-auto text-center py-2">
+            <div class="bg-purple-50 rounded-2xl p-4 border-2 border-purple-200">
+                <h2 class="text-2xl sm:text-3xl font-black text-purple-700 mb-1">
+                    🗳️ とうひょう タイム！
+                </h2>
+                <p class="text-xs sm:text-sm font-bold text-gray-600">
+                    だれが 「うそつき（わーどうるふ）」 だと おもう？<br>
+                    いっせいに ゆび を さして、いちばん おおかった ひと を えらんでね！
+                </p>
+            </div>
+
+            <div id="vote-buttons" class="grid grid-cols-2 gap-3 max-h-60 overflow-y-auto p-1">
+                <!-- JSで動的生成 -->
+            </div>
+
+            <p class="text-xs text-gray-400 font-bold">※ いちばん とうひょう された ひと を タップしてね</p>
+        </div>
+
+        <!-- SCREEN 5: 結果発表 -->
+        <div id="screen-result" class="hidden space-y-5 my-auto text-center py-2">
+            <div id="result-banner" class="rounded-3xl p-5 card-shadow space-y-2">
+                <div id="result-emoji" class="text-6xl sm:text-7xl">🎉</div>
+                <h2 id="result-title" class="text-2xl sm:text-4xl font-black text-white drop-shadow"></h2>
+                <p id="result-subtitle" class="text-xs sm:text-base font-bold text-white/90"></p>
+            </div>
+
+            <!-- おだい公開パネル -->
+            <div class="bg-white rounded-2xl p-4 sm:p-5 border-2 border-gray-200 card-shadow space-y-3">
+                <h3 class="text-base sm:text-lg font-bold text-gray-700 border-b pb-2">
+                    📖 こんかい の おだい
+                </h3>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+                    <div class="bg-sky-50 p-3 rounded-xl border border-sky-200">
+                        <span class="text-xs font-bold text-sky-600 block">【みんな の おだい】</span>
+                        <span id="result-citizen-word" class="text-xl sm:text-2xl font-black text-sky-800"></span>
+                    </div>
+                    <div class="bg-rose-50 p-3 rounded-xl border border-rose-200">
+                        <span class="text-xs font-bold text-rose-600 block">【わーどうるふ の おだい】</span>
+                        <span id="result-wolf-word" class="text-xl sm:text-2xl font-black text-rose-800"></span>
+                    </div>
+                </div>
+
+                <div class="bg-amber-50 p-3 rounded-xl border border-amber-200 text-left">
+                    <span class="text-xs font-bold text-amber-700 block">🐺 わーどうるふ は だれ？</span>
+                    <span id="result-wolf-name" class="text-lg sm:text-xl font-black text-amber-900"></span>
+                </div>
+            </div>
+
+            <button onclick="restartGame()" class="btn-pop w-full bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-white font-black text-xl sm:text-2xl py-4 rounded-2xl shadow-xl border-b-4 border-orange-700">
+                🔄 もういちど あそぶ！
+            </button>
+        </div>
+
+        <!-- Footer -->
+        <footer class="text-center text-xs text-gray-400 font-bold mt-2 pt-2 border-t border-gray-200/50">
+            しょうがくせい ていがくねん むけ ワードウルフ
+        </footer>
+    </div>
+
+    <script>
+        // 小学生低学年でもわかる・ひらがな表記のお題ペアリスト
+        const WORD_PAIRS = [
+            { citizen: "りんご", wolf: "みかん" },
+            { citizen: "いぬ", wolf: "ねこ" },
+            { citizen: "かれー", wolf: "しちゅー" },
+            { citizen: "ぶらんこ", wolf: "すべりだい" },
+            { citizen: "さっかー", wolf: "やきゅう" },
+            { citizen: "えんぴつ", wolf: "けしごむ" },
+            { citizen: "でんしゃ", wolf: "ひこうき" },
+            { citizen: "どうぶつえん", wolf: "すいぞくかん" },
+            { citizen: "らーめん", wolf: "うどん" },
+            { citizen: "ぽてとちっぷす", wolf: "ぽっぷこーん" },
+            { citizen: "えいがかん", wolf: "ゆうえんち" },
+            { citizen: "すいか", wolf: "めろん" },
+            { citizen: "ぱん", wolf: "ぐらたん" },
+            { citizen: "ちよこれーと", wolf: "あめだま" },
+            { citizen: "うみの いえ", wolf: "プール" },
+            { citizen: "かぶとむし", wolf: "くわがた" },
+            { citizen: "テレビ", wolf: "ゲーム" },
+            { citizen: "ピアノ", wolf: "たいこ" },
+            { citizen: "ばなな", wolf: "いちご" },
+            { citizen: "おにぎり", wolf: "さんどいっち" }
+        ];
+
+        // 低学年向け質問ヒント
+        const HINT_QUESTIONS = [
+            "「それ は たべもの ですか？」",
+            "「どんな いろ を していますか？」",
+            "「どれくらいの おおきさ ですか？」",
+            "「おうち に ありますか？」",
+            "「すきですか？ きらいですか？」",
+            "「あさ・ひる・ばん、いつ つかいますか？」",
+            "「どこで みかける ことが おおいですか？」",
+            "「さわると どんな かんじ が しますか？」",
+            "「おとうさん・おかあさん も つかいますか？」"
+        ];
+
+        // ゲーム状態
+        let playerCount = 3;
+        let players = [];
+        let currentRevealIndex = 0;
+        let citizenWord = "";
+        let wolfWord = "";
+        let wolfIndex = -1;
+        let timerInterval = null;
+        let timeLeft = 180; // 3分
+        let isTimerRunning = false;
+
+        // Web Audio API（効果音再生）
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new AudioContext();
+            }
+        }
+
+        function playSound(type) {
+            try {
+                initAudio();
+                if (!audioCtx) return;
+
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                const now = audioCtx.currentTime;
+
+                if (type === 'tap') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(440, now);
+                    osc.frequency.exponentialRampToValueAtTime(880, now + 0.1);
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.1);
+                    osc.start(now);
+                    osc.stop(now + 0.1);
+                } else if (type === 'reveal') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(523.25, now);
+                    osc.frequency.setValueAtTime(659.25, now + 0.1);
+                    osc.frequency.setValueAtTime(783.99, now + 0.2);
+                    gain.gain.setValueAtTime(0.4, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.4);
+                    osc.start(now);
+                    osc.stop(now + 0.4);
+                } else if (type === 'fanfare') {
+                    [523.25, 659.25, 783.99, 1046.50].forEach((freq, idx) => {
+                        const o = audioCtx.createOscillator();
+                        const g = audioCtx.createGain();
+                        o.connect(g);
+                        g.connect(audioCtx.destination);
+                        o.frequency.setValueAtTime(freq, now + idx * 0.12);
+                        g.gain.setValueAtTime(0.3, now + idx * 0.12);
+                        g.gain.linearRampToValueAtTime(0.01, now + idx * 0.12 + 0.25);
+                        o.start(now + idx * 0.12);
+                        o.stop(now + idx * 0.12 + 0.25);
+                    });
+                } else if (type === 'alarm') {
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(880, now);
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                }
+            } catch (e) {
+                console.log("Audio play error", e);
+            }
+        }
+
+        // 初期化
+        window.onload = function() {
+            renderPlayerInputs();
+        };
+
+        // 人数変更
+        function changePlayerCount(delta) {
+            playSound('tap');
+            const newCount = playerCount + delta;
+            if (newCount >= 3 && newCount <= 8) {
+                playerCount = newCount;
+                document.getElementById('player-count-display').innerText = playerCount;
+                renderPlayerInputs();
+            }
+        }
+
+        // プレイヤー名前入力欄の描画
+        function renderPlayerInputs() {
+            const container = document.getElementById('player-inputs');
+            container.innerHTML = '';
+            const defaultNames = ['たろう', 'はなこ', 'じろう', 'さくら', 'けんた', 'あおい', 'ゆうき', 'りん'];
+
+            for (let i = 0; i < playerCount; i++) {
+                const div = document.createElement('div');
+                div.className = 'flex items-center gap-1 bg-white p-2 rounded-xl border border-sky-100 shadow-sm';
+                div.innerHTML = `
+                    <span class="text-xs font-bold text-sky-500 w-5 text-center">${i + 1}</span>
+                    <input type="text" id="player-name-${i}" value="${defaultNames[i] || 'プレイヤー' + (i + 1)}" 
+                        class="w-full text-sm font-bold text-gray-700 bg-transparent focus:outline-none focus:ring-1 focus:ring-sky-300 rounded px-1" />
+                `;
+                container.appendChild(div);
+            }
+        }
+
+        // ゲーム開始
+        function startGame() {
+            playSound('tap');
+            players = [];
+            for (let i = 0; i < playerCount; i++) {
+                const input = document.getElementById(`player-name-${i}`);
+                const name = input ? input.value.trim() : `プレイヤー${i + 1}`;
+                players.push({ name: name || `プレイヤー${i + 1}`, role: 'citizen', word: '' });
+            }
+
+            // おだいペアをランダム選択
+            const randomPair = WORD_PAIRS[Math.floor(Math.random() * WORD_PAIRS.length)];
+            if (Math.random() < 0.5) {
+                citizenWord = randomPair.citizen;
+                wolfWord = randomPair.wolf;
+            } else {
+                citizenWord = randomPair.wolf;
+                wolfWord = randomPair.citizen;
+            }
+
+            // ウルフを1名ランダム選出
+            wolfIndex = Math.floor(Math.random() * playerCount);
+            players.forEach((p, idx) => {
+                if (idx === wolfIndex) {
+                    p.role = 'wolf';
+                    p.word = wolfWord;
+                } else {
+                    p.role = 'citizen';
+                    p.word = citizenWord;
+                }
+            });
+
+            // 画面切り替え（おだい確認へ）
+            currentRevealIndex = 0;
+            showScreen('screen-reveal');
+            setupRevealStep();
+        }
+
+        // おだい確認ステップのセットアップ
+        function setupRevealStep() {
+            document.getElementById('current-player-name').innerText = `${players[currentRevealIndex].name} さん`;
+            document.getElementById('reveal-progress').innerText = currentRevealIndex + 1;
+            document.getElementById('reveal-total').innerText = playerCount;
+
+            document.getElementById('card-cover').classList.remove('hidden');
+            document.getElementById('card-content').classList.add('hidden');
+        }
+
+        // カードを開く
+        function revealWord() {
+            playSound('reveal');
+            document.getElementById('secret-word-display').innerText = players[currentRevealIndex].word;
+            document.getElementById('card-cover').classList.add('hidden');
+            document.getElementById('card-content').classList.remove('hidden');
+        }
+
+        // わかりました（次のひとへ）
+        function confirmWord() {
+            playSound('tap');
+            currentRevealIndex++;
+            if (currentRevealIndex < playerCount) {
+                setupRevealStep();
+            } else {
+                startTalkPhase();
+            }
+        }
+
+        // 話し合いフェーズ
+        function startTalkPhase() {
+            showScreen('screen-talk');
+            resetTimer();
+            startTimer();
+        }
+
+        function resetTimer() {
+            clearInterval(timerInterval);
+            timeLeft = 180; // 3分
+            isTimerRunning = false;
+            updateTimerDisplay();
+            document.getElementById('btn-timer-toggle').innerText = '▶️ すたーと';
+        }
+
+        function updateTimerDisplay() {
+            const mins = Math.floor(timeLeft / 60);
+            const secs = timeLeft % 60;
+            document.getElementById('timer-display').innerText = 
+                `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        }
+
+        function toggleTimer() {
+            playSound('tap');
+            if (isTimerRunning) {
+                clearInterval(timerInterval);
+                isTimerRunning = false;
+                document.getElementById('btn-timer-toggle').innerText = '▶️ すたーと';
+            } else {
+                startTimer();
+            }
+        }
+
+        function startTimer() {
+            isTimerRunning = true;
+            document.getElementById('btn-timer-toggle').innerText = '⏸️ とめる';
+            timerInterval = setInterval(() => {
+                if (timeLeft > 0) {
+                    timeLeft--;
+                    updateTimerDisplay();
+                } else {
+                    clearInterval(timerInterval);
+                    isTimerRunning = false;
+                    playSound('alarm');
+                    document.getElementById('timer-display').innerText = "00:00";
+                }
+            }, 1000);
+        }
+
+        function getRandomHint() {
+            playSound('tap');
+            const hint = HINT_QUESTIONS[Math.floor(Math.random() * HINT_QUESTIONS.length)];
+            document.getElementById('hint-box').innerText = hint;
+        }
+
+        // 投票画面へ
+        function goToVote() {
+            playSound('tap');
+            clearInterval(timerInterval);
+            showScreen('screen-vote');
+
+            const container = document.getElementById('vote-buttons');
+            container.innerHTML = '';
+
+            players.forEach((p, idx) => {
+                const btn = document.createElement('button');
+                btn.className = "btn-pop bg-white hover:bg-purple-100 text-purple-900 border-2 border-purple-300 font-black text-lg py-4 px-3 rounded-2xl shadow flex items-center justify-center gap-2";
+                btn.onclick = () => selectVotedPlayer(idx);
+                btn.innerText = `👤 ${p.name}`;
+                container.appendChild(btn);
+            });
+        }
+
+        // 被疑者の選択・結果発表
+        function selectVotedPlayer(votedIdx) {
+            playSound('tap');
+            showScreen('screen-result');
+
+            const isWolfCaught = (votedIdx === wolfIndex);
+
+            const banner = document.getElementById('result-banner');
+            const emoji = document.getElementById('result-emoji');
+            const title = document.getElementById('result-title');
+            const subtitle = document.getElementById('result-subtitle');
+
+            if (isWolfCaught) {
+                playSound('fanfare');
+                triggerConfetti();
+                banner.className = "bg-gradient-to-r from-emerald-400 to-teal-500 rounded-3xl p-5 card-shadow space-y-2";
+                emoji.innerText = "🎊";
+                title.innerText = "みんな の かち！";
+                subtitle.innerText = `うそつき（わーどうるふ）の 【${players[wolfIndex].name}】 さん を みつけだしたよ！`;
+            } else {
+                playSound('fanfare');
+                banner.className = "bg-gradient-to-r from-rose-400 to-pink-500 rounded-3xl p-5 card-shadow space-y-2";
+                emoji.innerText = "🐺";
+                title.innerText = "わーどうるふ の かち！";
+                subtitle.innerText = `【${players[votedIdx].name}】 さん は うそつき ではありませんでした！`;
+            }
+
+            document.getElementById('result-citizen-word').innerText = citizenWord;
+            document.getElementById('result-wolf-word').innerText = wolfWord;
+            document.getElementById('result-wolf-name').innerText = `${players[wolfIndex].name} さん`;
+        }
+
+        // 紙吹雪エフェクト
+        function triggerConfetti() {
+            if (typeof confetti === 'function') {
+                confetti({
+                    particleCount: 100,
+                    spread: 70,
+                    origin: { y: 0.6 }
+                });
+            }
+        }
+
+        // 再スタート
+        function restartGame() {
+            playSound('tap');
+            showScreen('screen-setup');
+        }
+
+        // 画面切り替えヘルパー
+        function showScreen(screenId) {
+            const screens = ['screen-setup', 'screen-reveal', 'screen-talk', 'screen-vote', 'screen-result'];
+            screens.forEach(id => {
+                const el = document.getElementById(id);
+                if (id === screenId) {
+                    el.classList.remove('hidden');
+                } else {
+                    el.classList.add('hidden');
+                }
+            });
+        }
+    </script>
+</body>
+</html>
